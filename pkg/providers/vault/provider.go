@@ -14,12 +14,16 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/net/context"
+	"google.golang.org/grpc/metadata"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
+	"github.com/zlabjp/secrets-store-csi-driver/pkg/spire"
+	"github.com/zlabjp/spire/proto/spire/api/workload"
 	"golang.org/x/net/http2"
 )
 
@@ -354,6 +358,34 @@ func (p *Provider) MountSecretsStoreObjectContent(ctx context.Context, attrib ma
 
 // GetKeyValueObjectContent get content of the vault object
 func (p *Provider) GetKeyValueObjectContent(ctx context.Context, objectPath string, objectName string, objectVersion string) (content string, err error) {
+
+	// fetch SVID
+	timeout := 60 * time.Second
+	spirePath := "/run/spire/sockets/agent.sock"
+
+	ctx := context.Background()
+	header := metadata.Pairs("workload.spiffe.io", "true")
+	ctx = metadata.NewOutgoingContext(ctx, header)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	wl, err := spire.NewWorkloadAPI(ctx, spirePath, timeout)
+	if err != nil {
+		glog.Exitf("failed to initialize WorkloadAPI client: %v", err)
+	}
+
+	req := &workload.X509SVIDRequest{}
+
+	stream, err := wl.Client.FetchX509SVID(ctx, req)
+	if err != nil {
+		glog.Exitf("failed to fetch X509 SVID: %v", err)
+	}
+	resp, err := stream.Recv()
+	if err != nil {
+		glog.Exitf("failed to fetch response: %v", err)
+	}
+	fmt.Println(resp.Svids)
+
 	// Read the jwt token from disk
 	jwt, err := readJWTToken(p.KubernetesServiceAccountPath)
 	if err != nil {
