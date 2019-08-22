@@ -15,7 +15,8 @@
 REGISTRY_NAME=ritazh
 IMAGE_NAME=secrets-store-csi
 IMAGE_VERSION=v0.0.4
-IMAGE_TAG=$(REGISTRY_NAME)/$(IMAGE_NAME):$(IMAGE_VERSION)
+# IMAGE_TAG=$(REGISTRY_NAME)/$(IMAGE_NAME):$(IMAGE_VERSION)
+IMAGE_TAG=$(IMAGE_NAME):dev
 IMAGE_TAG_LATEST=$(REGISTRY_NAME)/$(IMAGE_NAME):latest
 REV=$(shell git describe --long --tags --dirty)
 LDFLAGS?='-X github.com/deislabs/secrets-store-csi-driver/pkg/secrets-store.vendorVersion=$(IMAGE_VERSION) -extldflags "-static"'

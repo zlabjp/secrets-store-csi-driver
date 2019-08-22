@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"path"
@@ -22,8 +23,9 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
+	"github.com/spiffe/go-spiffe/proto/spiffe/workload"
+	wdial "github.com/spiffe/spire/api/workload/dial"
 	"github.com/zlabjp/secrets-store-csi-driver/pkg/spire"
-	"github.com/zlabjp/spire/proto/spire/api/workload"
 	"golang.org/x/net/http2"
 )
 
@@ -359,11 +361,11 @@ func (p *Provider) MountSecretsStoreObjectContent(ctx context.Context, attrib ma
 // GetKeyValueObjectContent get content of the vault object
 func (p *Provider) GetKeyValueObjectContent(ctx context.Context, objectPath string, objectName string, objectVersion string) (content string, err error) {
 
-	// fetch SVID
+	// fetch SVID =========================================================
 	timeout := 60 * time.Second
 	spirePath := "/run/spire/sockets/agent.sock"
 
-	ctx := context.Background()
+	ctx = context.Background()
 	header := metadata.Pairs("workload.spiffe.io", "true")
 	ctx = metadata.NewOutgoingContext(ctx, header)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
@@ -385,6 +387,7 @@ func (p *Provider) GetKeyValueObjectContent(ctx context.Context, objectPath stri
 		glog.Exitf("failed to fetch response: %v", err)
 	}
 	fmt.Println(resp.Svids)
+	// ====================================================================
 
 	// Read the jwt token from disk
 	jwt, err := readJWTToken(p.KubernetesServiceAccountPath)
@@ -405,4 +408,22 @@ func (p *Provider) GetKeyValueObjectContent(ctx context.Context, objectPath stri
 	}
 
 	return value, nil
+}
+
+// TODO: Move other package
+type WorkloadAPI struct {
+	Client workload.SpiffeWorkloadAPIClient
+}
+
+func NewWorkloadAPI(ctx context.Context, socketPath string, timeout time.Duration) (*WorkloadAPI, error) {
+	conn, err := wdial.Dial(ctx, &net.UnixAddr{
+		Name: socketPath,
+		Net:  "unix",
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &WorkloadAPI{
+		Client: workload.NewSpiffeWorkloadAPIClient(conn),
+	}, nil
 }
